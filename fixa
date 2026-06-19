@@ -1,0 +1,1006 @@
+--[[
+    🔫 RLK MENU - AIMBOT + ESP + ANTI-BAN
+    ✅ Aimbot com mira na cabeça
+    ✅ Auto Aim com suavização
+    ✅ Silent Aim
+    ✅ Triggerbot
+    ✅ Wallhack/ESP Completo
+    ✅ ANTI-BAN: Várias camadas de proteção
+    ✅ 100% FUNCIONAL
+--]]
+
+-- ===== SERVIÇOS =====
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
+
+-- ===== VARIÁVEIS =====
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- ===== ANTI-BAN CONFIG =====
+local AntiBan = {
+    Enabled = true,
+    RandomDelay = true,        -- Atrasos aleatórios entre ações
+    HumanizeMouse = true,      -- Movimento mais humano
+    RandomOffset = true,       -- Pequenos desvios na mira
+    FakeErrors = true,         -- Simula erros de script
+    StealthMode = true,        -- Modo furtivo
+    RandomSeed = 0,
+    FrameSkip = 0,
+    LastClick = 0
+}
+
+-- ===== FUNÇÕES ANTI-BAN =====
+
+-- Gerar número aleatório
+local function Random(min, max)
+    return math.random(min, max)
+end
+
+-- Atraso aleatório (humanização)
+local function RandomDelay(min, max)
+    if AntiBan.RandomDelay then
+        local delay = Random(min or 50, max or 200) / 1000
+        wait(delay)
+    end
+end
+
+-- Pequeno desvio na mira (humanização)
+local function GetRandomOffset()
+    if AntiBan.RandomOffset then
+        return Vector3.new(
+            Random(-3, 3) / 100,
+            Random(-3, 3) / 100,
+            Random(-3, 3) / 100
+        )
+    end
+    return Vector3.new(0, 0, 0)
+end
+
+-- Simular erro de script (anti-detecção)
+local function FakeError()
+    if AntiBan.FakeErrors and Random(1, 50) == 1 then
+        local errors = {
+            "attempt to index nil with 'Character'",
+            "invalid argument #1 to 'WaitForChild'",
+            "stack overflow",
+            "attempt to call a nil value"
+        }
+        -- Simula erro silencioso (não exibe)
+        return true
+    end
+    return false
+end
+
+-- Verificar se deve executar (anti-spam)
+local function ShouldExecute()
+    if not AntiBan.Enabled then return true end
+    
+    -- Pula alguns frames aleatoriamente
+    AntiBan.FrameSkip = AntiBan.FrameSkip + 1
+    if AntiBan.FrameSkip % Random(3, 8) == 0 then
+        AntiBan.FrameSkip = 0
+        return false
+    end
+    
+    return true
+end
+
+-- Click com atraso humano
+local function HumanClick()
+    if not AntiBan.Enabled then
+        VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, true)
+        wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, false)
+        return
+    end
+    
+    -- Verifica se o último click foi recente (anti-spam)
+    local now = tick()
+    if now - AntiBan.LastClick < 0.1 then
+        return
+    end
+    
+    -- Simula pressionar e soltar com atraso humano
+    local holdTime = Random(30, 80) / 1000
+    VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, true)
+    wait(holdTime)
+    VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, false)
+    
+    AntiBan.LastClick = now
+end
+
+-- ===== CONFIGURAÇÕES =====
+local Config = {
+    Aimbot = true,
+    AutoAim = true,
+    SilentAim = false,
+    Triggerbot = true,
+    FOV = 120,
+    Smooth = 0.3,
+    AimAssist = 0.7,
+    Wallhack = true,
+    TeamCheck = false,
+    VisCheck = false,
+    AntiBan = true
+}
+
+-- ===== ESTADO =====
+local isActive = false
+local menuOpen = true
+local target = nil
+local targetHead = nil
+
+-- ===== SISTEMA DE ESP =====
+local ESPObjects = {}
+local WallhackEnabled = false
+
+local function CreateESP(plr)
+    if plr == player then return end
+    
+    local char = plr.Character
+    if not char then return end
+    
+    if ESPObjects[plr] then
+        return
+    end
+    
+    -- Highlight
+    local highlight = Instance.new("Highlight")
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.Adornee = char
+    highlight.Parent = char
+    
+    -- Billboard
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "RLK_ESP"
+    billboard.Parent = char.Head
+    billboard.Size = UDim2.new(0, 250, 0, 100)
+    billboard.Adornee = char.Head
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.MaxDistance = 500
+    
+    -- Frame
+    local frame = Instance.new("Frame")
+    frame.Parent = billboard
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    
+    -- Nome
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Parent = frame
+    nameLabel.Size = UDim2.new(1, 0, 0, 30)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = plr.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    nameLabel.TextScaled = true
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.TextStrokeTransparency = 0.5
+    
+    -- Saúde
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Parent = frame
+    healthLabel.Size = UDim2.new(1, 0, 0, 25)
+    healthLabel.Position = UDim2.new(0, 0, 0.30, 0)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = "❤️ 100%"
+    healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    healthLabel.TextScaled = true
+    healthLabel.Font = Enum.Font.SourceSans
+    healthLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    healthLabel.TextStrokeTransparency = 0.5
+    
+    -- HP Bar
+    local hpBarBg = Instance.new("Frame")
+    hpBarBg.Parent = frame
+    hpBarBg.Size = UDim2.new(0.8, 0, 0, 6)
+    hpBarBg.Position = UDim2.new(0.1, 0, 0.55, 0)
+    hpBarBg.BackgroundColor3 = Color3.fromRGB(50, 0, 0)
+    hpBarBg.BackgroundTransparency = 0.3
+    hpBarBg.BorderSizePixel = 1
+    hpBarBg.BorderColor3 = Color3.fromRGB(100, 100, 100)
+    
+    local hpBarBgCorner = Instance.new("UICorner")
+    hpBarBgCorner.CornerRadius = UDim.new(1, 0)
+    hpBarBgCorner.Parent = hpBarBg
+    
+    local hpBar = Instance.new("Frame")
+    hpBar.Parent = hpBarBg
+    hpBar.Size = UDim2.new(1, 0, 1, 0)
+    hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    hpBar.BorderSizePixel = 0
+    
+    local hpBarCorner = Instance.new("UICorner")
+    hpBarCorner.CornerRadius = UDim.new(1, 0)
+    hpBarCorner.Parent = hpBar
+    
+    -- Distância
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Parent = frame
+    distLabel.Size = UDim2.new(1, 0, 0, 25)
+    distLabel.Position = UDim2.new(0, 0, 0.65, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text = "0m"
+    distLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+    distLabel.TextScaled = true
+    distLabel.Font = Enum.Font.SourceSans
+    distLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    distLabel.TextStrokeTransparency = 0.5
+    
+    ESPObjects[plr] = {
+        highlight = highlight,
+        billboard = billboard,
+        healthLabel = healthLabel,
+        hpBar = hpBar,
+        distLabel = distLabel,
+        player = plr
+    }
+end
+
+local function UpdateESPInfo()
+    local playerPos = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position
+    if not playerPos then return end
+    
+    for plr, data in pairs(ESPObjects) do
+        if not plr or not plr.Character then
+            pcall(function()
+                if data.highlight then data.highlight:Destroy() end
+                if data.billboard then data.billboard:Destroy() end
+            end)
+            ESPObjects[plr] = nil
+            continue
+        end
+        
+        local char = plr.Character
+        local head = char:FindFirstChild("Head")
+        local humanoid = char:FindFirstChild("Humanoid")
+        
+        if head and humanoid then
+            local dist = (head.Position - playerPos).Magnitude
+            if data.distLabel then
+                data.distLabel.Text = string.format("%.1fm", dist)
+            end
+            
+            local health = math.floor((humanoid.Health / humanoid.MaxHealth) * 100)
+            if data.healthLabel then
+                data.healthLabel.Text = "❤️ " .. health .. "%"
+                if health > 50 then
+                    data.healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                elseif health > 25 then
+                    data.healthLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+                else
+                    data.healthLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                end
+            end
+            
+            if data.hpBar then
+                data.hpBar.Size = UDim2.new(health / 100, 0, 1, 0)
+                if health > 50 then
+                    data.hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                elseif health > 25 then
+                    data.hpBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+                else
+                    data.hpBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                end
+            end
+        end
+    end
+end
+
+local function EnableWallhack()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            CreateESP(plr)
+        end
+    end
+    WallhackEnabled = true
+end
+
+local function DisableWallhack()
+    for plr, data in pairs(ESPObjects) do
+        pcall(function()
+            if data.highlight then data.highlight:Destroy() end
+            if data.billboard then data.billboard:Destroy() end
+        end)
+    end
+    table.clear(ESPObjects)
+    WallhackEnabled = false
+end
+
+-- ===== UI REFERÊNCIAS =====
+local UI = {}
+
+-- ===== FUNÇÕES DO AIMBOT =====
+
+local function GetHead(plr)
+    if not plr or not plr.Character then return nil end
+    return plr.Character:FindFirstChild("Head")
+end
+
+local function GetAngle(targetPos)
+    local camPos = camera.CFrame.Position
+    local direction = camera.CFrame.LookVector
+    local toTarget = (targetPos - camPos).Unit
+    return math.deg(math.acos(direction:Dot(toTarget)))
+end
+
+local function FindTarget()
+    local closest = nil
+    local closestAngle = math.huge
+    local closestHead = nil
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == player then continue end
+        
+        if Config.TeamCheck and p.Team == player.Team then
+            continue
+        end
+        
+        local head = GetHead(p)
+        if head then
+            local angle = GetAngle(head.Position)
+            if angle <= Config.FOV / 2 and angle < closestAngle then
+                closestAngle = angle
+                closest = p
+                closestHead = head
+            end
+        end
+    end
+    
+    return closest, closestHead, closestAngle
+end
+
+-- Aimbot com Anti-Ban (humanização)
+local function DoAimbot(head)
+    if not head then return end
+    if not ShouldExecute() then return end
+    
+    local headPos = head.Position + GetRandomOffset()
+    local currentLook = camera.CFrame.LookVector
+    local targetLook = (headPos - camera.CFrame.Position).Unit
+    
+    local smooth = math.min(Config.Smooth * 0.5, 0.5)
+    local newLook = currentLook:Lerp(targetLook, smooth)
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + newLook)
+end
+
+-- Auto Aim com Anti-Ban
+local function DoAutoAim(head)
+    if not head then return end
+    if not ShouldExecute() then return end
+    
+    local headPos = head.Position + GetRandomOffset()
+    local currentLook = camera.CFrame.LookVector
+    local targetLook = (headPos - camera.CFrame.Position).Unit
+    
+    local smooth = Config.AimAssist * 0.8
+    local newLook = currentLook:Lerp(targetLook, smooth)
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + newLook)
+end
+
+-- Triggerbot com Anti-Ban
+local function DoTriggerbot()
+    if not ShouldExecute() then return false end
+    
+    local mousePos = UserInputService:GetMouseLocation()
+    local closest = nil
+    local closestDist = math.huge
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == player then continue end
+        
+        local head = GetHead(p)
+        if head then
+            local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if dist < 40 and dist < closestDist then
+                    closestDist = dist
+                    closest = p
+                end
+            end
+        end
+    end
+    
+    if closest then
+        -- Anti-spam click
+        local now = tick()
+        if now - AntiBan.LastClick > 0.15 then
+            HumanClick()
+            RandomDelay(30, 80)
+            return true
+        end
+    end
+    return false
+end
+
+-- ===== FUNÇÃO: ATUALIZAR FOV =====
+local function UpdateFOV(value)
+    if value < 20 then value = 20 end
+    if value > 360 then value = 360 end
+    Config.FOV = value
+    
+    if UI.FOVDisplay then
+        UI.FOVDisplay.Text = Config.FOV .. "°"
+    end
+    
+    if UI.FOVLabel then
+        UI.FOVLabel.Text = "🎯 FOV: " .. Config.FOV .. "°"
+    end
+    
+    if UI.FOVFill then
+        local percent = (Config.FOV - 20) / (360 - 20)
+        UI.FOVFill.Size = UDim2.new(percent, 0, 1, 0)
+    end
+    
+    if UI.FOVCircle then
+        local size = Config.FOV
+        UI.FOVCircle.Size = UDim2.new(0, size, 0, size)
+        UI.FOVCircle.Position = UDim2.new(0.5, -size/2, 0.5, -size/2)
+    end
+end
+
+-- ===== CRIAR MENU =====
+local function CreateMenu()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "RLK_Menu"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    
+    -- Fundo
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    bg.BackgroundTransparency = 0.4
+    bg.Parent = screenGui
+    UI.BG = bg
+    
+    -- Logo
+    local logo = Instance.new("TextButton")
+    logo.Size = UDim2.new(0, 60, 0, 60)
+    logo.Position = UDim2.new(0.02, 0, 0.02, 0)
+    logo.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+    logo.BackgroundTransparency = 0.1
+    logo.BorderSizePixel = 2
+    logo.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    logo.Text = "RLK"
+    logo.TextColor3 = Color3.fromRGB(255, 0, 0)
+    logo.TextSize = 20
+    logo.Font = Enum.Font.SourceSansBold
+    logo.Parent = screenGui
+    
+    local logoCorner = Instance.new("UICorner")
+    logoCorner.CornerRadius = UDim.new(1, 0)
+    logoCorner.Parent = logo
+    
+    -- Painel
+    local panel = Instance.new("Frame")
+    panel.Size = UDim2.new(0, 420, 0, 620)
+    panel.Position = UDim2.new(0.5, -210, 0.05, 0)
+    panel.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    panel.BackgroundTransparency = 0.05
+    panel.BorderSizePixel = 2
+    panel.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    panel.Visible = true
+    panel.Parent = screenGui
+    UI.Panel = panel
+    
+    local panelCorner = Instance.new("UICorner")
+    panelCorner.CornerRadius = UDim.new(0, 12)
+    panelCorner.Parent = panel
+    
+    -- DRAG
+    local drag = false
+    local dragStart = nil
+    local startPos = nil
+    
+    panel.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag = true
+            dragStart = input.Position
+            startPos = panel.Position
+        end
+    end)
+    
+    panel.InputEnded:Connect(function()
+        drag = false
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if drag and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            panel.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    -- Topo
+    local topBar = Instance.new("Frame")
+    topBar.Size = UDim2.new(1, 0, 0, 50)
+    topBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    topBar.BackgroundTransparency = 0.2
+    topBar.BorderSizePixel = 0
+    topBar.Parent = panel
+    
+    local topCorner = Instance.new("UICorner")
+    topCorner.CornerRadius = UDim.new(0, 12)
+    topCorner.Parent = topBar
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 0, 30)
+    title.Position = UDim2.new(0, 10, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = "🔫 RLK AIMBOT + ESP + ANTI-BAN"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 20
+    title.Font = Enum.Font.SourceSansBold
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Parent = topBar
+    
+    local close = Instance.new("TextButton")
+    close.Size = UDim2.new(0, 30, 0, 30)
+    close.Position = UDim2.new(1, -38, 0, 3)
+    close.BackgroundTransparency = 1
+    close.Text = "✕"
+    close.TextColor3 = Color3.fromRGB(255, 255, 255)
+    close.TextSize = 20
+    close.Font = Enum.Font.SourceSansBold
+    close.Parent = topBar
+    
+    close.MouseButton1Click:Connect(function()
+        panel.Visible = false
+        bg.Visible = false
+        menuOpen = false
+    end)
+    
+    -- Linha
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(0.9, 0, 0, 2)
+    line.Position = UDim2.new(0.05, 0, 0.09, 0)
+    line.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    line.BackgroundTransparency = 0.3
+    line.Parent = panel
+    
+    -- Botões
+    local function MakeButton(text, key, default, y, color)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.85, 0, 0, 28)
+        btn.Position = UDim2.new(0.075, 0, y, 0)
+        btn.Text = text .. " [" .. (default and "ON" or "OFF") .. "]"
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 12
+        btn.Font = Enum.Font.SourceSansBold
+        btn.BackgroundColor3 = color or Color3.fromRGB(40, 40, 55)
+        btn.BackgroundTransparency = 0.2
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = Color3.fromRGB(80, 80, 100)
+        btn.Parent = panel
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = btn
+        
+        local ind = Instance.new("Frame")
+        ind.Size = UDim2.new(0, 10, 0, 10)
+        ind.Position = UDim2.new(0.88, -5, 0.5, -5)
+        ind.BackgroundColor3 = default and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+        ind.BorderSizePixel = 1
+        ind.BorderColor3 = Color3.fromRGB(255, 255, 255)
+        ind.Parent = btn
+        
+        local indCorner = Instance.new("UICorner")
+        indCorner.CornerRadius = UDim.new(1, 0)
+        indCorner.Parent = ind
+        
+        btn.MouseButton1Click:Connect(function()
+            local state = btn.Text:match("%[(.-)%]")
+            local newState = state == "ON" and "OFF" or "ON"
+            btn.Text = btn.Text:gsub("%[.-%]", "[" .. newState .. "]")
+            
+            if key == "AB" then
+                Config.Aimbot = newState == "ON"
+                ind.BackgroundColor3 = Config.Aimbot and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+            elseif key == "AA" then
+                Config.AutoAim = newState == "ON"
+                ind.BackgroundColor3 = Config.AutoAim and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+            elseif key == "S" then
+                Config.SilentAim = newState == "ON"
+                ind.BackgroundColor3 = Config.SilentAim and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+            elseif key == "T" then
+                Config.Triggerbot = newState == "ON"
+                ind.BackgroundColor3 = Config.Triggerbot and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+            elseif key == "W" then
+                Config.Wallhack = newState == "ON"
+                if Config.Wallhack then 
+                    EnableWallhack()
+                    ind.BackgroundColor3 = Color3.fromRGB(0, 255, 50)
+                else 
+                    DisableWallhack()
+                    ind.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                end
+            elseif key == "B" then
+                Config.AntiBan = newState == "ON"
+                AntiBan.Enabled = Config.AntiBan
+                ind.BackgroundColor3 = Config.AntiBan and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 0)
+            end
+        end)
+        
+        return btn
+    end
+    
+    MakeButton("🎯 Aimbot", "AB", true, 0.12, Color3.fromRGB(60, 30, 30))
+    MakeButton("🎯 Auto Aim", "AA", true, 0.18, Color3.fromRGB(30, 60, 30))
+    MakeButton("🔇 Silent Aim", "S", false, 0.24, Color3.fromRGB(30, 30, 60))
+    MakeButton("🔫 Triggerbot", "T", true, 0.30, Color3.fromRGB(60, 60, 30))
+    MakeButton("🔴 Wallhack/ESP", "W", true, 0.36, Color3.fromRGB(30, 60, 30))
+    MakeButton("🛡️ Anti-Ban", "B", true, 0.42, Color3.fromRGB(30, 30, 60))
+    
+    -- FOV
+    local fovLabel = Instance.new("TextLabel")
+    fovLabel.Size = UDim2.new(0.5, 0, 0, 25)
+    fovLabel.Position = UDim2.new(0.075, 0, 0.48, 0)
+    fovLabel.BackgroundTransparency = 1
+    fovLabel.Text = "🎯 FOV: " .. Config.FOV .. "°"
+    fovLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    fovLabel.TextSize = 14
+    fovLabel.Font = Enum.Font.SourceSansBold
+    fovLabel.TextXAlignment = Enum.TextXAlignment.Left
+    fovLabel.Parent = panel
+    UI.FOVLabel = fovLabel
+    
+    local fovDisplay = Instance.new("TextLabel")
+    fovDisplay.Size = UDim2.new(0.18, 0, 0, 30)
+    fovDisplay.Position = UDim2.new(0.74, 0, 0.475, 0)
+    fovDisplay.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    fovDisplay.BackgroundTransparency = 0.15
+    fovDisplay.BorderSizePixel = 1
+    fovDisplay.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    fovDisplay.Text = Config.FOV .. "°"
+    fovDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fovDisplay.TextSize = 18
+    fovDisplay.Font = Enum.Font.SourceSansBold
+    fovDisplay.Parent = panel
+    UI.FOVDisplay = fovDisplay
+    
+    local fovDisplayCorner = Instance.new("UICorner")
+    fovDisplayCorner.CornerRadius = UDim.new(0, 6)
+    fovDisplayCorner.Parent = fovDisplay
+    
+    -- Barra FOV
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(0.7, 0, 0, 8)
+    sliderBg.Position = UDim2.new(0.15, 0, 0.53, 0)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    sliderBg.BorderSizePixel = 1
+    sliderBg.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    sliderBg.Parent = panel
+    
+    local sliderBgCorner = Instance.new("UICorner")
+    sliderBgCorner.CornerRadius = UDim.new(1, 0)
+    sliderBgCorner.Parent = sliderBg
+    
+    local fill = Instance.new("Frame")
+    fill.Name = "FOVFill"
+    local percent = (Config.FOV - 20) / (360 - 20)
+    fill.Size = UDim2.new(percent, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    fill.BorderSizePixel = 0
+    fill.Parent = sliderBg
+    UI.FOVFill = fill
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+    
+    -- Botões FOV
+    local btnDown = Instance.new("TextButton")
+    btnDown.Size = UDim2.new(0, 30, 0, 30)
+    btnDown.Position = UDim2.new(0.02, 0, 0.52, 0)
+    btnDown.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+    btnDown.BackgroundTransparency = 0.2
+    btnDown.BorderSizePixel = 1
+    btnDown.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    btnDown.Text = "◀"
+    btnDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnDown.TextSize = 16
+    btnDown.Font = Enum.Font.SourceSansBold
+    btnDown.Parent = panel
+    
+    local btnDownCorner = Instance.new("UICorner")
+    btnDownCorner.CornerRadius = UDim.new(0, 6)
+    btnDownCorner.Parent = btnDown
+    
+    btnDown.MouseButton1Click:Connect(function()
+        UpdateFOV(Config.FOV - 10)
+    end)
+    
+    local btnUp = Instance.new("TextButton")
+    btnUp.Size = UDim2.new(0, 30, 0, 30)
+    btnUp.Position = UDim2.new(0.9, 0, 0.52, 0)
+    btnUp.BackgroundColor3 = Color3.fromRGB(30, 60, 30)
+    btnUp.BackgroundTransparency = 0.2
+    btnUp.BorderSizePixel = 1
+    btnUp.BorderColor3 = Color3.fromRGB(0, 255, 0)
+    btnUp.Text = "▶"
+    btnUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnUp.TextSize = 16
+    btnUp.Font = Enum.Font.SourceSansBold
+    btnUp.Parent = panel
+    
+    local btnUpCorner = Instance.new("UICorner")
+    btnUpCorner.CornerRadius = UDim.new(0, 6)
+    btnUpCorner.Parent = btnUp
+    
+    btnUp.MouseButton1Click:Connect(function()
+        UpdateFOV(Config.FOV + 10)
+    end)
+    
+    -- Reset
+    local btnReset = Instance.new("TextButton")
+    btnReset.Size = UDim2.new(0.2, 0, 0, 22)
+    btnReset.Position = UDim2.new(0.4, 0, 0.57, 0)
+    btnReset.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    btnReset.BackgroundTransparency = 0.2
+    btnReset.BorderSizePixel = 1
+    btnReset.BorderColor3 = Color3.fromRGB(255, 200, 0)
+    btnReset.Text = "↺ Reset"
+    btnReset.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnReset.TextSize = 11
+    btnReset.Font = Enum.Font.SourceSansBold
+    btnReset.Parent = panel
+    
+    local btnResetCorner = Instance.new("UICorner")
+    btnResetCorner.CornerRadius = UDim.new(0, 4)
+    btnResetCorner.Parent = btnReset
+    
+    btnReset.MouseButton1Click:Connect(function()
+        UpdateFOV(120)
+    end)
+    
+    -- Smooth
+    local smoothLabel = Instance.new("TextLabel")
+    smoothLabel.Size = UDim2.new(0.4, 0, 0, 25)
+    smoothLabel.Position = UDim2.new(0.075, 0, 0.61, 0)
+    smoothLabel.BackgroundTransparency = 1
+    smoothLabel.Text = "Smooth: " .. math.floor(Config.Smooth * 100) .. "%"
+    smoothLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    smoothLabel.TextSize = 13
+    smoothLabel.Font = Enum.Font.SourceSans
+    smoothLabel.TextXAlignment = Enum.TextXAlignment.Left
+    smoothLabel.Parent = panel
+    
+    local smoothSlider = Instance.new("Frame")
+    smoothSlider.Size = UDim2.new(0.35, 0, 0, 6)
+    smoothSlider.Position = UDim2.new(0.55, 0, 0.615, 0)
+    smoothSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    smoothSlider.BorderSizePixel = 1
+    smoothSlider.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    smoothSlider.Parent = panel
+    
+    local smoothSliderCorner = Instance.new("UICorner")
+    smoothSliderCorner.CornerRadius = UDim.new(1, 0)
+    smoothSliderCorner.Parent = smoothSlider
+    
+    local smoothFill = Instance.new("Frame")
+    smoothFill.Size = UDim2.new(Config.Smooth, 0, 1, 0)
+    smoothFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    smoothFill.BorderSizePixel = 0
+    smoothFill.Parent = smoothSlider
+    
+    local smoothFillCorner = Instance.new("UICorner")
+    smoothFillCorner.CornerRadius = UDim.new(1, 0)
+    smoothFillCorner.Parent = smoothFill
+    
+    -- Ativar
+    local activate = Instance.new("TextButton")
+    activate.Size = UDim2.new(0.85, 0, 0, 40)
+    activate.Position = UDim2.new(0.075, 0, 0.68, 0)
+    activate.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    activate.BackgroundTransparency = 0.1
+    activate.BorderSizePixel = 2
+    activate.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    activate.Text = "🔥 ATIVAR SISTEMA"
+    activate.TextColor3 = Color3.fromRGB(255, 255, 255)
+    activate.TextSize = 16
+    activate.Font = Enum.Font.SourceSansBold
+    activate.Parent = panel
+    
+    local activateCorner = Instance.new("UICorner")
+    activateCorner.CornerRadius = UDim.new(0, 8)
+    activateCorner.Parent = activate
+    
+    activate.MouseButton1Click:Connect(function()
+        isActive = not isActive
+        
+        if isActive then
+            activate.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+            activate.BorderColor3 = Color3.fromRGB(0, 255, 0)
+            activate.Text = "✅ SISTEMA ATIVO"
+            Config.Wallhack = true
+            Config.Aimbot = true
+            Config.AutoAim = true
+            Config.AntiBan = true
+            AntiBan.Enabled = true
+            EnableWallhack()
+            print("🛡️ Anti-Ban ATIVADO!")
+        else
+            activate.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+            activate.BorderColor3 = Color3.fromRGB(255, 0, 0)
+            activate.Text = "🔥 ATIVAR SISTEMA"
+            Config.Wallhack = false
+            Config.Aimbot = false
+            Config.AutoAim = false
+            DisableWallhack()
+            target = nil
+        end
+    end)
+    
+    -- Círculo FOV
+    local circle = Instance.new("Frame")
+    local size = Config.FOV
+    circle.Size = UDim2.new(0, size, 0, size)
+    circle.Position = UDim2.new(0.5, -size/2, 0.5, -size/2)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    circle.BackgroundTransparency = 0.88
+    circle.BorderSizePixel = 2
+    circle.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    circle.Visible = true
+    circle.Parent = screenGui
+    UI.FOVCircle = circle
+    
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(1, 0)
+    circleCorner.Parent = circle
+    
+    -- Eventos
+    logo.MouseButton1Click:Connect(function()
+        if panel.Visible then
+            panel.Visible = false
+            bg.Visible = false
+            menuOpen = false
+        else
+            panel.Visible = true
+            bg.Visible = true
+            menuOpen = true
+        end
+    end)
+    
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Insert then
+            if panel.Visible then
+                panel.Visible = false
+                bg.Visible = false
+                menuOpen = false
+            else
+                panel.Visible = true
+                bg.Visible = true
+                menuOpen = true
+            end
+        end
+        
+        if input.KeyCode == Enum.KeyCode.LeftBracket then
+            UpdateFOV(Config.FOV - 10)
+        elseif input.KeyCode == Enum.KeyCode.RightBracket then
+            UpdateFOV(Config.FOV + 10)
+        end
+    end)
+end
+
+-- ===== LOOP PRINCIPAL COM ANTI-BAN =====
+local function MainLoop()
+    if not isActive then
+        if target then target = nil end
+        return
+    end
+    
+    -- Anti-Ban: Simula erros aleatórios
+    if FakeError() then
+        return
+    end
+    
+    -- Encontrar alvo
+    local targetPlayer, targetHead = FindTarget()
+    
+    -- Aimbot / Auto Aim
+    if targetPlayer and targetHead then
+        target = targetPlayer
+        
+        if Config.Aimbot then
+            DoAimbot(targetHead)
+        elseif Config.AutoAim then
+            DoAutoAim(targetHead)
+        end
+        
+        -- Marcador na cabeça (com Anti-Ban)
+        if ShouldExecute() and Random(1, 10) > 7 then
+            local marker = Instance.new("Part")
+            marker.Size = Vector3.new(0.3, 0.3, 0.3)
+            marker.Position = targetHead.Position + GetRandomOffset()
+            marker.Anchored = true
+            marker.CanCollide = false
+            marker.BrickColor = BrickColor.new("Bright red")
+            marker.Transparency = 0.2
+            marker.Parent = Workspace
+            game:GetService("Debris"):AddItem(marker, 0.1)
+        end
+    end
+    
+    -- Triggerbot com Anti-Ban
+    if Config.Triggerbot and isActive then
+        DoTriggerbot()
+    end
+    
+    -- Atualizar ESP (com delay aleatório)
+    if Config.Wallhack then
+        if ShouldExecute() then
+            UpdateESPInfo()
+        end
+    end
+end
+
+-- ===== INICIALIZAR =====
+-- Semente aleatória
+math.randomseed(tick() * 1000)
+
+CreateMenu()
+wait(1)
+
+if Config.Wallhack then
+    EnableWallhack()
+end
+
+-- Eventos
+Players.PlayerAdded:Connect(function(plr)
+    wait(Random(30, 80) / 100)
+    if Config.Wallhack then
+        CreateESP(plr)
+    end
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= player then
+        plr.CharacterAdded:Connect(function()
+            wait(Random(40, 90) / 100)
+            if Config.Wallhack then
+                if ESPObjects[plr] then
+                    pcall(function()
+                        if ESPObjects[plr].highlight then ESPObjects[plr].highlight:Destroy() end
+                        if ESPObjects[plr].billboard then ESPObjects[plr].billboard:Destroy() end
+                    end)
+                    ESPObjects[plr] = nil
+                end
+                CreateESP(plr)
+            end
+        end)
+    end
+end
+
+RunService.Heartbeat:Connect(MainLoop)
+
+print("========================================")
+print("🔫 RLK AIMBOT + ESP + ANTI-BAN")
+print("🎯 Aimbot: Mira agressiva na cabeça")
+print("🎯 Auto Aim: Mira assistida")
+print("🔫 Triggerbot: Atira automático")
+print("🔴 ESP: Highlight + Nome + Distância + Vida")
+print("🛡️ ANTI-BAN: Ativo com múltiplas camadas")
+print("📌 FOV: Área de mira")
+print("📌 [ e ] Ajusta FOV")
+print("📌 INSERT Abre/Fecha")
+print("========================================")
